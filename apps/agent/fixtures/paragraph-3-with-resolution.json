@@ -1,0 +1,79 @@
+{
+  "_fixture": "paragraph-3-with-resolution",
+  "_after_typing": "Adds: 'Date range is capped at 1 year. Use a two-pane calendar picker (start + end).'",
+  "_demo_frame": 4,
+  "_invariant": "Same nodes/edges as paragraph-2 (no new flow steps). c1 status flips to 'resolved' (PRD now answers it). c2 appears about empty regions, ties to n6.",
+  "flowDiagram": {
+    "nodes": [
+      {
+        "id": "n1",
+        "label": "User on dashboard",
+        "type": "action",
+        "sourceQuote": "Users on the analytics dashboard"
+      },
+      {
+        "id": "n2",
+        "label": "Opens filter",
+        "type": "action",
+        "sourceQuote": "filter their data"
+      },
+      {
+        "id": "n3",
+        "label": "Picks start date",
+        "type": "action",
+        "sourceQuote": "pick a start date and end date"
+      },
+      {
+        "id": "n4",
+        "label": "Picks end date",
+        "type": "action",
+        "sourceQuote": "pick a start date and end date"
+      },
+      {
+        "id": "n5",
+        "label": "Reruns query",
+        "type": "endpoint",
+        "sourceQuote": "re-run the query"
+      },
+      {
+        "id": "n6",
+        "label": "Selects region grouping",
+        "type": "action",
+        "sourceQuote": "group results by region"
+      },
+      {
+        "id": "n7",
+        "label": "Chart updates in real time",
+        "type": "endpoint",
+        "sourceQuote": "update the chart in real time"
+      }
+    ],
+    "edges": [
+      { "from": "n1", "to": "n2" },
+      { "from": "n2", "to": "n3" },
+      { "from": "n3", "to": "n4" },
+      { "from": "n4", "to": "n5" },
+      { "from": "n4", "to": "n6" },
+      { "from": "n6", "to": "n7" }
+    ]
+  },
+  "comments": [
+    {
+      "id": "c1",
+      "quote": "filter their data by a custom date range",
+      "question": "What's the max range allowed — 30 days, 1 year, all-time? And is the picker a single calendar or two separate pickers?",
+      "relatedNodeId": "n3",
+      "status": "resolved"
+    },
+    {
+      "id": "c2",
+      "quote": "group results by region",
+      "question": "What if a region has no data in the selected range — hide it, show a placeholder, or fall back to a wider window?",
+      "relatedNodeId": "n6",
+      "status": "open"
+    }
+  ],
+  "specCard": null,
+  "docContent": "Users on the analytics dashboard need to filter their data by a custom date range. Today, they can only choose preset windows (7, 30, 90 days). The new flow lets them pick a start date and end date and re-run the query.\n\nUsers should also be able to group results by region. The combination of date range and region grouping should update the chart in real time.\n\nDate range is capped at 1 year. Use a two-pane calendar picker (start + end).",
+  "requestSpecCard": false
+}

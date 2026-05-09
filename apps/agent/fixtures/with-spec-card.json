@@ -1,0 +1,112 @@
+{
+  "_fixture": "with-spec-card",
+  "_after_typing": "Adds: 'Empty state: regions with zero data in the range show a no-data placeholder, not hidden.' Then PM clicks Generate engineering handoff.",
+  "_demo_frame": "5+6",
+  "_invariant": "n8 (decision) and n9 (empty_state) are NEW from paragraph 4 about empty regions. c2 flips to 'resolved'. specCard populated from requestSpecCard=true.",
+  "flowDiagram": {
+    "nodes": [
+      {
+        "id": "n1",
+        "label": "User on dashboard",
+        "type": "action",
+        "sourceQuote": "Users on the analytics dashboard"
+      },
+      {
+        "id": "n2",
+        "label": "Opens filter",
+        "type": "action",
+        "sourceQuote": "filter their data"
+      },
+      {
+        "id": "n3",
+        "label": "Picks start date",
+        "type": "action",
+        "sourceQuote": "pick a start date and end date"
+      },
+      {
+        "id": "n4",
+        "label": "Picks end date",
+        "type": "action",
+        "sourceQuote": "pick a start date and end date"
+      },
+      {
+        "id": "n5",
+        "label": "Reruns query",
+        "type": "endpoint",
+        "sourceQuote": "re-run the query"
+      },
+      {
+        "id": "n6",
+        "label": "Selects region grouping",
+        "type": "action",
+        "sourceQuote": "group results by region"
+      },
+      {
+        "id": "n7",
+        "label": "Chart updates in real time",
+        "type": "endpoint",
+        "sourceQuote": "update the chart in real time"
+      },
+      {
+        "id": "n8",
+        "label": "Region has data?",
+        "type": "decision",
+        "sourceQuote": "regions with zero data in the range"
+      },
+      {
+        "id": "n9",
+        "label": "Show 'no data' placeholder",
+        "type": "empty_state",
+        "sourceQuote": "show a 'no data' placeholder, not hidden"
+      }
+    ],
+    "edges": [
+      { "from": "n1", "to": "n2" },
+      { "from": "n2", "to": "n3" },
+      { "from": "n3", "to": "n4" },
+      { "from": "n4", "to": "n5" },
+      { "from": "n4", "to": "n6" },
+      { "from": "n6", "to": "n8" },
+      { "from": "n8", "to": "n7", "label": "yes" },
+      { "from": "n8", "to": "n9", "label": "no" }
+    ]
+  },
+  "comments": [
+    {
+      "id": "c1",
+      "quote": "filter their data by a custom date range",
+      "question": "What's the max range allowed — 30 days, 1 year, all-time? And is the picker a single calendar or two separate pickers?",
+      "relatedNodeId": "n3",
+      "status": "resolved"
+    },
+    {
+      "id": "c2",
+      "quote": "group results by region",
+      "question": "What if a region has no data in the selected range — hide it, show a placeholder, or fall back to a wider window?",
+      "relatedNodeId": "n6",
+      "status": "resolved"
+    }
+  ],
+  "specCard": {
+    "refinedPRD": "## PRD: Date-range filtering for analytics dashboard\n\n### Summary\nUsers on the analytics dashboard can filter their data by a custom date range and group results by region. Today they're limited to preset windows (7, 30, 90 days); the new flow accepts arbitrary start/end dates with a two-pane calendar picker, capped at 1 year.\n\n### Flow\n1. From the dashboard, the user opens the filter.\n2. They pick a start date and end date in a two-pane calendar picker.\n3. They optionally select a region grouping.\n4. The query reruns; the chart updates in real time as date or grouping changes.\n5. Regions with zero data in the selected range render a 'no data' placeholder (not hidden).\n\n### Constraints\n- Maximum date range: 1 year.\n- Two-pane calendar picker for start + end (not a single calendar, not two separate dialogs).\n- Empty regions: placeholder, never hidden.",
+    "acceptanceCriteria": [
+      "Given a user is on the analytics dashboard, when they open the filter and select a start date and end date within a 1-year window, then the query reruns and the chart updates with the filtered data.",
+      "Given the user has selected a date range, when they enable region grouping, then the chart updates in real time without a manual rerun.",
+      "Given a region has zero data in the selected range, when the chart renders, then that region shows a 'no data' placeholder (it is not hidden).",
+      "Given a user attempts a date range exceeding 1 year, when they confirm the picker, then the picker rejects the selection and surfaces a 'max 1 year' message.",
+      "Given the picker UI, when the user opens it, then both start and end dates are visible side by side in a two-pane calendar (not a single field, not separate dialogs)."
+    ],
+    "resolvedQuestions": [
+      {
+        "q": "What's the max range allowed — 30 days, 1 year, all-time? And is the picker a single calendar or two separate pickers?",
+        "a": "Capped at 1 year. Use a two-pane calendar picker (start + end)."
+      },
+      {
+        "q": "What if a region has no data in the selected range — hide it, show a placeholder, or fall back to a wider window?",
+        "a": "Show a 'no data' placeholder, do not hide."
+      }
+    ]
+  },
+  "docContent": "Users on the analytics dashboard need to filter their data by a custom date range. Today, they can only choose preset windows (7, 30, 90 days). The new flow lets them pick a start date and end date and re-run the query.\n\nUsers should also be able to group results by region. The combination of date range and region grouping should update the chart in real time.\n\nDate range is capped at 1 year. Use a two-pane calendar picker (start + end).\n\nEmpty state: regions with zero data in the range show a 'no data' placeholder, not hidden.",
+  "requestSpecCard": true
+}
