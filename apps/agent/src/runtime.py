@@ -5,7 +5,7 @@ side-by-side benchmark Gemini-Flash-Lite-deepagents vs. Gemini-Flash-Lite-react
 vs. Claude-Sonnet-4.6-react without a code edit.
 
 Every runtime keeps the same middleware chain — `TimingMiddleware` first
-(outermost) so it sees every inner model/tool call, then `LeadStateMiddleware`
+(outermost) so it sees every inner model/tool call, then `PairPMStateMiddleware`
 to contribute the canvas-state TypedDict, and `CopilotKitMiddleware` for
 AG-UI / CopilotKit interop.
 
@@ -22,7 +22,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from copilotkit import CopilotKitMiddleware
 
-from .lead_state import LeadStateMiddleware
+from .pair_pm_middleware import PairPMStateMiddleware
 from .timing import TimingMiddleware
 
 
@@ -30,6 +30,8 @@ RuntimeName = Literal[
     "gemini-flash-deep",
     "gemini-flash-react",
     "claude-sonnet-4-6-react",
+    "kimi-deep",
+    "kimi-react",
     "noop",
 ]
 
@@ -38,6 +40,8 @@ _VALID_RUNTIMES = (
     "gemini-flash-deep",
     "gemini-flash-react",
     "claude-sonnet-4-6-react",
+    "kimi-deep",
+    "kimi-react",
     "noop",
 )
 
@@ -79,9 +83,9 @@ def build_graph(
         runtime = "gemini-flash-deep"
 
     timing = TimingMiddleware()
-    lead_state = LeadStateMiddleware()
+    pair_pm_state = PairPMStateMiddleware()
     copilotkit = CopilotKitMiddleware()
-    middleware = [timing, lead_state, copilotkit]
+    middleware = [timing, pair_pm_state, copilotkit]
 
     if runtime == "noop":
         return _build_noop(NOOP_FALLBACK_MESSAGE)
@@ -91,6 +95,10 @@ def build_graph(
         return _build_gemini_react(tools, system_prompt, middleware)
     if runtime == "claude-sonnet-4-6-react":
         return _build_claude_react(tools, system_prompt, middleware)
+    if runtime == "kimi-deep":
+        return _build_kimi_deep(tools, system_prompt, middleware)
+    if runtime == "kimi-react":
+        return _build_kimi_react(tools, system_prompt, middleware)
 
     # Unreachable (validated above) — placate type-checker
     raise RuntimeError(f"unreachable runtime branch: {runtime!r}")
@@ -230,6 +238,58 @@ def _build_claude_react(
         temperature=0,
         api_key=api_key or "stub",
     )
+    return create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+    )
+
+
+# --------------------------------------------------------------------- kimi
+
+def _kimi_llm():
+    """Build the configured Kimi For Coding chat model.
+
+    Uses the OpenAI-compatible API endpoint at api.kimi.com.
+    Verified against `langchain-openai` 0.3.x.
+    """
+    from langchain_openai import ChatOpenAI
+
+    api_key = os.getenv("KIMI_API_KEY") or "stub"
+    return ChatOpenAI(
+        model="kimi-for-coding",
+        temperature=0,
+        api_key=api_key,
+        base_url="https://api.kimi.com/coding/v1",
+    )
+
+
+def _build_kimi_deep(
+    tools: list, system_prompt: str, middleware: list
+) -> CompiledStateGraph:
+    """Kimi For Coding + deepagents planner."""
+    from deepagents import create_deep_agent
+
+    llm = _kimi_llm()
+    return create_deep_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+    )
+
+
+def _build_kimi_react(
+    tools: list, system_prompt: str, middleware: list
+) -> CompiledStateGraph:
+    """Plain react agent on Kimi For Coding.
+
+    Skips deepagents' planner / virtual-fs / TODO-loop.
+    """
+    from langchain.agents import create_agent
+
+    llm = _kimi_llm()
     return create_agent(
         model=llm,
         tools=tools,
