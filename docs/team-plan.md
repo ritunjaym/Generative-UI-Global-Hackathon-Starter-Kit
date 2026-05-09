@@ -2,7 +2,7 @@
 
 **Hackathon date:** 2026-05-09
 **Time budget:** 2.5 hours
-**Team:** 2 people
+**Team:** 3 people
 **Branch:** `pair-pm` (everyone works here, no sub-branches)
 **Spec:** [`docs/pair-pm-spec.pdf`](pair-pm-spec.pdf)
 
@@ -17,19 +17,26 @@
 - **Backend:** LangGraph Deep Agents in `apps/agent/`, `AGENT_RUNTIME=gemini-flash-deep`, Gemini 3.1 Flash-Lite.
 - **Skipped:** MCP, Notion, A2UI for the diagram (we render with ReactFlow ourselves), LangSmith, Daytona.
 
-**Integration contract.** The `PairPMState` JSON shape (spec section 4). TypeScript types in [`apps/frontend/src/lib/pair-pm/types.ts`](../apps/frontend/src/lib/pair-pm/types.ts) (already scaffolded). Python TypedDict equivalent in [`apps/agent/src/pair_pm_state.py`](../apps/agent/src/pair_pm_state.py) (already scaffolded). **Field names match verbatim from the spec — no variations.** Both files import directly from each other's contracts.
+**Integration contract.** The `PairPMState` JSON shape (spec section 4). TypeScript types in [`apps/frontend/src/lib/pair-pm/types.ts`](../apps/frontend/src/lib/pair-pm/types.ts) (already scaffolded). Python TypedDict equivalent in [`apps/agent/src/pair_pm_state.py`](../apps/agent/src/pair_pm_state.py) (already scaffolded). **Field names match verbatim from the spec — no variations.**
+
+**Three-way ownership.**
+- **Person A — Frontend.** Owns `apps/frontend/`. Doesn't touch `apps/agent/`.
+- **Person B — Backend "brain" (Aman).** Owns the prompt + fixtures + demo content. WHAT the agent says.
+- **Person C — Backend "body".** Owns the runtime + middleware + validation. HOW the agent runs.
+
+Persons B and C both work in `apps/agent/` but on **different files** — there shouldn't be merge conflicts.
 
 ---
 
 ## Together first (0:00 – 0:15)
 
-Before either of you starts solo work:
+Before anyone starts solo work:
 
-1. Both: `npm install` then `npm run dev` — confirm it boots (Docker must be running)
-2. Both: review the integration contract in [`apps/frontend/src/lib/pair-pm/types.ts`](../apps/frontend/src/lib/pair-pm/types.ts) and [`apps/agent/src/pair_pm_state.py`](../apps/agent/src/pair_pm_state.py) — these are already scaffolded; flag any field mismatches before either of you starts
-3. Both: skim [`docs/demo-script.md`](demo-script.md) — these are the exact paragraphs we both test against
+1. All: `npm install` then `npm run dev` — confirm it boots locally (Docker must be running)
+2. All: review the integration contract in [`apps/frontend/src/lib/pair-pm/types.ts`](../apps/frontend/src/lib/pair-pm/types.ts) and [`apps/agent/src/pair_pm_state.py`](../apps/agent/src/pair_pm_state.py) — already scaffolded; flag any field mismatches now
+3. All: skim [`docs/demo-script.md`](demo-script.md) — the exact paragraphs we all test against
 
-After this, you both work in parallel. No more cross-talk needed until 1:00.
+After this everyone works in parallel. No more cross-talk needed until 0:45.
 
 ---
 
@@ -45,149 +52,162 @@ After this, you both work in parallel. No more cross-talk needed until 1:00.
 - **Library:** TipTap with StarterKit, restricted to heading / paragraph / bullet list
 - **Behavior:** debounce content changes by 2s OR push on `blur`, whichever comes first
 - **Output:** serialized doc text → CopilotKit shared state field `docContent: string`
-- **Acceptance:** typing in the editor updates `docContent` after 2s of no edits, no jank
 
 #### 2. Flow Diagram — right-top pane (~60% height)
-- **Files:**
-  - `apps/frontend/src/components/FlowDiagram.tsx` — main container
-  - `apps/frontend/src/components/FlowNode.tsx` — custom node component
-- **Library:** ReactFlow (`reactflow` npm)
-- **Behavior:** render `state.flowDiagram.nodes` and `.edges` from CopilotKit shared state
-- **Stable-ID diff (load-bearing — Risk 1 in spec):**
-  - Memoize previous nodes by `id`
-  - When a new node ID appears, mark it "new" for one render cycle and animate it in
-  - Existing node IDs keep their position — never re-render in place
-  - **Test by alternating between `paragraph-1.json` and `paragraph-2.json` fixtures — must animate additively, not flicker**
-- **Animations (Framer Motion):**
-  - New nodes: 200ms staggered fade + slide-in
-  - Yellow pulse: when a comment with matching `relatedNodeId` is hovered (in pane #3)
-  - Green flash: 400ms when a node is newly added
-- **Acceptance:** loading `paragraph-1.json` shows 5 nodes; switching to `paragraph-2.json` adds new branch *without* moving existing nodes
+- **Files:** `apps/frontend/src/components/FlowDiagram.tsx`, `FlowNode.tsx`
+- **Library:** ReactFlow + Framer Motion
+- **Stable-ID diff (load-bearing — Risk 1 in spec):** memoize previous nodes by `id`; new IDs animate in, existing IDs stay put. **Test by alternating `paragraph-1.json` ↔ `paragraph-2.json` fixtures — must animate additively, not flicker.**
+- **Animations:** new nodes = 200ms staggered fade+slide, yellow pulse on hovered comment's `relatedNodeId`, 400ms green flash on node add
 
-#### 3. Comment Card — right-bottom pane top (controlled component)
+#### 3. Comment Card — right-bottom (`useComponent`)
 - **File:** `apps/frontend/src/components/CommentCard.tsx`
-- **Pattern:** `useComponent` from CopilotKit (controlled — agent supplies props)
 - **Props:** `id`, `quote`, `question`, `relatedNodeId?`, `status`, `onResolve`
-- **Visuals:**
-  - Quote block at top: italic, gray border-left, prefixed with the bubble icon
-  - "Pair-PM" sender label
-  - Question text
-  - "Mark resolved" button
-- **States:**
-  - `open` — default border
-  - `resolved` — green border, 60% opacity, slides down to a "resolved" row below the active stack
-- **Hover behavior:** when `relatedNodeId` is set, hover triggers yellow pulse on that node (set `highlight: 'yellow'` on node OR fire shared event)
-- **Acceptance:** render 2 cards from a fixture, hover one → see node pulse yellow; click resolve → card moves to resolved row + counter (in action bar) increments
+- **States:** `open` (default border) → `resolved` (green border, 60% opacity, slides to "resolved" row)
+- **Hover:** fires yellow pulse on the linked node
 
-#### 4. Spec Card — replaces flow diagram on handoff (controlled component)
+#### 4. Spec Card — replaces flow diagram on handoff (`useComponent`)
 - **File:** `apps/frontend/src/components/SpecCard.tsx`
-- **Pattern:** `useComponent`
-- **Sections (in order):**
-  1. **Refined PRD** — markdown rendered (use `react-markdown`)
-  2. **Mini flow diagram** — read-only ReactFlow, no animations
-  3. **Acceptance criteria** — Given/When/Then, monospace font
-  4. **Resolved questions** — Q/A pairs
-  5. **"Copy as Linear ticket" button** — formats whole card as Markdown, writes to clipboard via `navigator.clipboard.writeText()`
-- **Trigger:** when `state.specCard !== null`, slide it in from the right *replacing* the flow diagram (Framer Motion `AnimatePresence`)
-- **Acceptance:** clicking "Generate engineering handoff" → spec card slides in; copy button puts properly-formatted Markdown into clipboard
+- **Sections:** refined PRD (markdown) → mini diagram (read-only) → acceptance criteria (Given/When/Then, mono) → resolved Q/A pairs → "Copy as Linear ticket" button (formats as Markdown, `navigator.clipboard.writeText`)
+- **Trigger:** when `state.specCard !== null`, slide in from right via Framer Motion `AnimatePresence`
 
 #### 5. Layout + Action Bar
-- **File:** `apps/frontend/src/app/page.tsx` (or wherever the kit's main canvas page lives)
-- **Layout:** 50/50 horizontal split. Right column: 60/40 vertical split.
-- **Action bar** above right column: "Generate engineering handoff" button + "Resolved N/M" counter
-- **Counter logic:** `${resolved.length} of ${total.length} resolved`
+- **File:** `apps/frontend/src/app/page.tsx`
+- 50/50 horizontal, right column 60/40 vertical. Action bar above right column: "Generate engineering handoff" button + "Resolved N/M" counter.
 
 ### Hour-by-hour for Person A
 
 | Time | Task | Done when |
 |---|---|---|
-| 0:00–0:15 | Together: env setup, schema lock, read demo script | `npm run dev` boots locally |
-| 0:15–0:45 | TipTap editor in left pane, debounced push to `console.log` | Typing → 2s later see content logged |
-| 0:45–1:15 | ReactFlow with `paragraph-1.json` fixture, custom node component | Diagram renders 5 nodes left-to-right |
-| 1:15–1:35 | Stable-ID diff + Framer Motion animations | Toggling between fixtures animates additively |
+| 0:00–0:15 | Together: env setup, schema review, demo script | `npm run dev` boots |
+| 0:15–0:45 | TipTap editor + 2s debounce + `console.log` push | Typing → content logged |
+| 0:45–1:15 | ReactFlow with `paragraph-1.json` fixture, custom node component | 5 nodes render left-to-right |
+| 1:15–1:35 | Stable-ID diff + animations | Toggling fixtures animates additively |
 | 1:35–1:50 | Wire CopilotKit shared state (replace fixture import) | Live agent output renders |
-| 1:50–2:10 | Comment Card via `useComponent`, render list, resolve flow | Cards appear, hover pulses node, resolve moves card |
-| 2:10–2:25 | Spec Card + handoff trigger + copy button | Generate handoff swaps in spec card |
+| 1:50–2:10 | Comment Card + resolve flow | Cards render, hover pulses node, resolve moves card |
+| 2:10–2:25 | Spec Card + handoff trigger + copy button | Generate handoff swaps in card |
 | 2:25–2:30 | Polish + final layout | Visual matches spec section 2 |
-
-### What will block you if not nailed early
-- **Stable-ID diff** — get this working with fixtures by 1:30. If it flickers, the demo dies.
-- **Framer Motion timing** — 200ms stagger feels right. Longer feels canned, shorter feels chaotic. Tune against the demo paragraphs.
 
 ---
 
-## Person B — Backend (Aman)
+## Person B — Backend "brain" (Aman)
 
-**Folder I own:** `apps/agent/` only. Don't touch `apps/frontend/`.
+**Folder you own:** `apps/agent/src/prompts.py` + `apps/agent/fixtures/` + `docs/`. Coordinate with Person C on prompt-loading wiring at 0:30.
 
 ### Deliverables
 
 #### 1. Pair-PM agent prompt
-- **File:** `apps/agent/src/runtime.py`
-- **Action:** replace the existing leads-related system prompt with the Pair-PM prompt from spec section 5
-- **Three responsibilities the prompt enforces:**
-  1. **Flow diagram** — maintain `flowDiagram.nodes` + `.edges` describing the user journey from the PRD prose
-  2. **Reviewer comments** — identify ambiguities and missing edge cases. Each comment: quote exact prose, ask one specific actionable question, tie to a flow node when possible.
-  3. **Spec card** — when triggered, emit `specCard` with refined PRD + 3–5 Given/When/Then acceptance criteria + resolved Q&As
-- **Style rules baked into prompt:**
-  - Senior, calm, specific
-  - Never vague ("consider edge cases" — banned)
-  - Always quote prose verbatim, not paraphrased
-  - Empty doc → emit empty arrays, never placeholder content
-  - **Stable IDs across emissions — never regenerate `n1`, `n2`, etc. for the same node**
+- **File:** `apps/agent/src/prompts.py`
+- **Action:** replace `LEAD_TRIAGE_PROMPT` + `INTEGRATION_PROMPT` with `PAIR_PM_PROMPT` (drafted; ready to paste). Update `SYSTEM_PROMPT` constant. Remove `build_system_prompt()` integration-status template — no integration block needed.
+- **The prompt encodes:**
+  - Three responsibilities (flow diagram, reviewer comments, spec card on `requestSpecCard=true`)
+  - Stable IDs (`n1` stays `n1` forever — load-bearing for the additive diagram)
+  - Verbatim quoting (no paraphrase)
+  - One specific question per comment; banned vague phrases
+  - Empty doc → empty arrays, not placeholders
+  - Full state every tick
 
-#### 2. PairPMState TypedDict models
-- **File:** `apps/agent/src/pair_pm_state.py` *(scaffolded)*
-- Already mirrors `apps/frontend/src/lib/pair-pm/types.ts` field names
-- Wire as the agent's structured-output schema (LangChain structured output) — point the model at `PairPMState`
-
-#### 3. JSON-schema validator (retain previous state on parse failure)
-- **File:** `apps/agent/src/state_validator.py`
-- Wrap agent emissions: parse → validate → return new state OR previous state on failure
-- Critical: never crash the UI mid-demo (Risk 4 in spec)
-
-#### 4. Demo fixtures — **UNBLOCKER for Person A, must land by 0:45**
+#### 2. Demo fixtures — **UNBLOCKER for Person A, must land by 0:45**
 - **Folder:** `apps/agent/fixtures/`
 - **Files:**
-  - `paragraph-1.json` — state after demo paragraph 1 typed (5 nodes, no comments)
-  - `paragraph-2.json` — state after paragraph 2 (adds region branch nodes, 1 comment about max date range)
-  - `paragraph-3-with-resolution.json` — state after paragraph 3 (comment 1 marked resolved, comment 2 appears)
-  - `with-spec-card.json` — full state with `specCard` populated
-- **Rule:** stable IDs across all files (`n1` in paragraph-1 must be the same `n1` in paragraph-2)
+  - `paragraph-1.json` — 5 nodes, no comments, no specCard
+  - `paragraph-2.json` — same n1–n5 + new branch nodes + 1 open comment
+  - `paragraph-3-with-resolution.json` — comment 1 status=resolved, comment 2 added
+  - `with-spec-card.json` — full state including populated specCard
+- **Rule:** stable IDs across all files (`n1` in paragraph-1 IS `n1` in paragraph-2)
 
-#### 5. "Generate handoff" trigger
-- Coordinate with Person A: shared state flag `requestSpecCard: boolean`
-- When true, agent populates `specCard` on next emission
+#### 3. Prompt iteration / quality testing
+- After Person C's runtime is wired (0:30), curl the agent at `:8133` with each demo paragraph; verify output matches the corresponding fixture
+- Iterate prompt to fix: paraphrased quotes, regenerated IDs, vague comments, off-spec node types
+- This is the highest-leverage demo-quality work — own this end-to-end
 
 ### Hour-by-hour for Person B
 
 | Time | Task | Done when |
 |---|---|---|
-| 0:00–0:15 | Together: env setup, schema lock | Schema files written, `npm run dev` boots |
-| 0:15–0:45 | Replace leads prompt; agent emits valid JSON for paragraph 1 (curl test or langgraph dev UI) | One-shot agent run produces state matching `paragraph-1.json` |
-| 0:45–1:00 | **Commit + push fixture JSONs — UNBLOCKS PERSON A** | All 4 fixture files committed to `pair-pm` |
-| 1:00–1:30 | Tune prompt for paragraphs 2–5; verify stable IDs and exact quoting | All 5 paragraphs produce correct stateful output |
-| 1:30–1:50 | JSON validator + retain-previous-state wrapper | Malformed output → previous state retained, no crash |
-| 1:50–2:00 | Generate handoff path → spec card emission | Agent emits valid `specCard` on request flag |
-| 2:00–2:15 | **Together: end-to-end smoke test** | Real agent → real UI works for all 5 paragraphs |
-| 2:15–2:25 | Record fallback video (I type, Person A's UI renders) | MP4 saved at `docs/fallback-demo.mp4` |
-| 2:25–2:30 | Submission text + README update | README reflects Pair-PM, not the kit's leads demo |
+| 0:00–0:15 | Together: env setup, schema review | Stack boots |
+| 0:15–0:30 | Paste `PAIR_PM_PROMPT` into `prompts.py`, wire `SYSTEM_PROMPT` constant | `prompts.py` compiles, no leads references left |
+| 0:30–0:45 | Author all 4 fixture JSONs by hand (use spec frames 2–6 as ground truth) | All fixtures committed and pushed |
+| 0:45–1:30 | Test prompt against demo paragraphs; iterate | All 5 paragraphs produce stable, quote-correct output |
+| 1:30–1:50 | Edge-case prompt tuning (resolution detection, empty doc, specCard trigger) | All edge cases match expected fixtures |
+| 1:50–2:00 | Drafting submission text (works while Person C finalizes validator) | First-pass submission draft in `docs/submission.md` |
+| 2:00–2:15 | **Together: end-to-end smoke test** | Real agent → real UI works for full demo |
+| 2:15–2:25 | **Type the demo paragraphs while Person C records the fallback video** | MP4 captured at `docs/fallback-demo.mp4` |
+| 2:25–2:30 | Final submission text + push | Submission ready |
 
-### Escape hatch
-If Gemini Flash-Lite misbehaves on stable IDs or exact quoting at the 2:00 smoke test:
-- One-line edit in `apps/agent/.env`: `AGENT_RUNTIME=claude-sonnet-4-6-react`
-- Add `ANTHROPIC_API_KEY` to `apps/agent/.env`
-- Restart agent (`npm run dev:agent`)
+---
+
+## Person C — Backend "body" (3rd teammate)
+
+**Folder you own:** `apps/agent/src/runtime.py` + `apps/agent/src/pair_pm_middleware.py` (NEW) + `apps/agent/src/state_validator.py` (NEW). **Don't touch `prompts.py` or `fixtures/`** — those are Person B's.
+
+### Why this exists (read first)
+
+The kit's `apps/agent/src/lead_state.py` declares lead-canvas fields on the agent's TypedDict state schema so they survive `STATE_SNAPSHOT` round-trips between agent and frontend. Without this, every state field except `messages` gets wiped when CopilotKit serializes state.
+
+You're writing the **Pair-PM equivalent** — same job, different fields. Use `lead_state.py` as the reference template; mirror its structure.
+
+### Deliverables
+
+#### 1. PairPMStateMiddleware (NEW)
+- **File:** `apps/agent/src/pair_pm_middleware.py`
+- **Reference:** `apps/agent/src/lead_state.py` — copy its structure
+- **Job:** declare `flowDiagram`, `comments`, `specCard`, `docContent`, `requestSpecCard` on the agent's TypedDict state schema so they survive STATE_SNAPSHOTs
+- **Source of truth for field shapes:** `apps/agent/src/pair_pm_state.py` (already scaffolded — import the TypedDicts from there)
+- **Hydration:** on first turn, populate from `EMPTY_STATE` (no external store, unlike leads)
+
+#### 2. Runtime wiring (modify)
+- **File:** `apps/agent/src/runtime.py`
+- **Action:** swap line 84 — replace `LeadStateMiddleware` with `PairPMStateMiddleware` in the middleware chain
+- Keep `TimingMiddleware` and `CopilotKitMiddleware` unchanged
+- Keep all three runtime variants (`gemini-flash-deep`, `gemini-flash-react`, `claude-sonnet-4-6-react`)
+- The `system_prompt` arg comes from `prompts.SYSTEM_PROMPT` (Person B's deliverable) — your code imports it; don't edit the prompt text
+
+#### 3. JSON state validator (NEW)
+- **File:** `apps/agent/src/state_validator.py`
+- **Job:** wrap agent output. Parse → validate against `PairPMState` shape → return new state OR previous state on failure
+- **Critical:** never crash the UI mid-demo (Risk 4 in spec). Log validation failures to stdout but always return a valid state to CopilotKit.
+- **Hook point:** wherever the agent's structured output gets written into shared state — wrap that step
+
+#### 4. main.py / graph wiring
+- **File:** `apps/agent/main.py` (or wherever `build_graph()` is called)
+- Confirm the new middleware composes; the LangGraph CLI (`langgraph dev`) reloads on changes — watch the agent terminal for import errors
+
+### Hour-by-hour for Person C
+
+| Time | Task | Done when |
+|---|---|---|
+| 0:00–0:15 | Together: env setup, schema review | Stack boots; you've read `lead_state.py` |
+| 0:15–0:45 | Write `pair_pm_middleware.py` mirroring `lead_state.py` | Imports without error; declares all 5 state fields |
+| 0:45–1:00 | Swap middleware in `runtime.py`; restart agent | Agent boots clean on `:8133`; no lead references in cold path |
+| 1:00–1:15 | Curl `:8133` with empty `docContent` — verify state shape returns | Empty state round-trips correctly |
+| 1:15–1:30 | Wire structured output target (`PairPMState`) on the LLM call | First real run with Person B's prompt produces valid JSON |
+| 1:30–1:50 | JSON validator wrapper + retain-previous-state on parse failure | Malformed output retains last good state |
+| 1:50–2:00 | Help Person B test paragraphs 2–5 if they're hitting issues | Spare-cycles support |
+| 2:00–2:15 | **Together: end-to-end smoke test** | Real agent → real UI works |
+| 2:15–2:25 | **Record fallback video** (Person B types the paragraphs, Person A's UI renders, you screen-record) | MP4 saved at `docs/fallback-demo.mp4` |
+| 2:25–2:30 | README update — replace kit's leads description with Pair-PM | README reflects the build |
+
+### What will block you if not nailed early
+- **Middleware schema mismatch.** If your TypedDict fields don't match `pair_pm_state.py` exactly, STATE_SNAPSHOTs will silently drop fields. Field-name parity is everything. `langgraph dev` doesn't always surface this clearly — diff against `pair_pm_state.py` line-by-line.
 
 ---
 
 ## Coordination rules
 
-- Both push directly to `pair-pm`. `git pull --rebase` before every push.
-- **Comms checkpoint at 0:45**: Person B confirms fixtures are committed; Person A confirms they can render them.
-- **2:00 sync**: both stop solo work, do end-to-end smoke test together.
-- **2:25 sync**: B records fallback video; A polishes.
-- **Last 5 minutes**: stop coding. Final demo recording. Submit.
+- All three push directly to `pair-pm`. `git pull --rebase` before every push.
+- **0:30 checkpoint** (B↔C): Person C reports runtime wiring done; Person B starts curling the live agent with demo paragraphs.
+- **0:45 checkpoint** (B↔A): Person B's fixtures are in `apps/agent/fixtures/`; Person A confirms they import and render.
+- **1:00 checkpoint** (B↔C): Person B reports first paragraph producing matching output; Person C confirms validator catches malformed output.
+- **2:00 sync** (all three): stop solo work, do end-to-end smoke test together.
+- **2:15 split:** B types, C records, A polishes. (See per-person tables.)
+- **Last 5 minutes:** stop coding. Final demo recording. Submit.
+
+## Escape hatch
+
+If Gemini Flash-Lite misbehaves on stable IDs or exact quoting at the 2:00 smoke test:
+1. Get an Anthropic API key (`ANTHROPIC_API_KEY`)
+2. Edit `apps/agent/.env`: `AGENT_RUNTIME=claude-sonnet-4-6-react`
+3. Restart `npm run dev:agent`
 
 ## What NOT to do
 
@@ -196,6 +216,7 @@ If Gemini Flash-Lite misbehaves on stable IDs or exact quoting at the 2:00 smoke
 - Don't wire MCP/Notion. Skipped.
 - Don't redesign the layout. 50/50 + 60/40 is locked.
 - Don't add features beyond the four components in spec section 6.
+- **Person B and C: don't touch each other's files.** B owns prompt + fixtures; C owns runtime + middleware + validator. Both work in `apps/agent/` but on disjoint paths.
 
 ## The wow moment to protect
 
