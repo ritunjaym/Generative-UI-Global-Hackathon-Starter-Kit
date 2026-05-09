@@ -30,6 +30,8 @@ RuntimeName = Literal[
     "gemini-flash-deep",
     "gemini-flash-react",
     "claude-sonnet-4-6-react",
+    "openai-gpt-4o-deep",
+    "openai-gpt-4o-react",
     "kimi-deep",
     "kimi-react",
     "noop",
@@ -40,6 +42,8 @@ _VALID_RUNTIMES = (
     "gemini-flash-deep",
     "gemini-flash-react",
     "claude-sonnet-4-6-react",
+    "openai-gpt-4o-deep",
+    "openai-gpt-4o-react",
     "kimi-deep",
     "kimi-react",
     "noop",
@@ -95,6 +99,10 @@ def build_graph(
         return _build_gemini_react(tools, system_prompt, middleware)
     if runtime == "claude-sonnet-4-6-react":
         return _build_claude_react(tools, system_prompt, middleware)
+    if runtime == "openai-gpt-4o-deep":
+        return _build_openai_deep(tools, system_prompt, middleware)
+    if runtime == "openai-gpt-4o-react":
+        return _build_openai_react(tools, system_prompt, middleware)
     if runtime == "kimi-deep":
         return _build_kimi_deep(tools, system_prompt, middleware)
     if runtime == "kimi-react":
@@ -238,6 +246,60 @@ def _build_claude_react(
         temperature=0,
         api_key=api_key or "stub",
     )
+    return create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+    )
+
+
+# --------------------------------------------------------------------- openai
+
+def _openai_llm():
+    """Build the configured OpenAI chat model.
+
+    Default: `gpt-4o-mini` — same fast/cheap tier as Gemini Flash-Lite, with
+    better-than-Gemini exact-quote and JSON adherence in our hackathon
+    testing. Bump to `gpt-4o` if demo quality needs the upgrade.
+    """
+    from langchain_openai import ChatOpenAI
+
+    api_key = os.getenv("OPENAI_API_KEY") or "stub"
+    return ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0,
+        api_key=api_key,
+    )
+
+
+def _build_openai_deep(
+    tools: list, system_prompt: str, middleware: list
+) -> CompiledStateGraph:
+    """OpenAI gpt-4o-mini + deepagents planner."""
+    from deepagents import create_deep_agent
+
+    llm = _openai_llm()
+    return create_deep_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+    )
+
+
+def _build_openai_react(
+    tools: list, system_prompt: str, middleware: list
+) -> CompiledStateGraph:
+    """Plain react agent on OpenAI gpt-4o-mini.
+
+    Skips deepagents' planner — leaner per-turn latency. Recommended
+    starting point for Pair-PM since the agent's job is single-shot
+    state emission, not multi-step planning.
+    """
+    from langchain.agents import create_agent
+
+    llm = _openai_llm()
     return create_agent(
         model=llm,
         tools=tools,
