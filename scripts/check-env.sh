@@ -36,6 +36,7 @@ fi
 
 # ---------- 3. agent/.env vars -----------------------------------------------
 AGENT_ENV="$REPO_ROOT/apps/agent/.env"
+SKIP_NOTION=0
 if [[ ! -f "$AGENT_ENV" ]]; then
   PROBLEMS+=("apps/agent/.env is missing. Run: cp apps/agent/.env.example apps/agent/.env, then fill in the keys.")
 else
@@ -53,7 +54,23 @@ else
     esac
     return 1
   }
-  for VAR in GEMINI_API_KEY NOTION_TOKEN NOTION_LEADS_DATABASE_ID; do
+
+  # SKIP_NOTION_CHECK=1 in apps/agent/.env bypasses Notion env-var validation
+  # and the live Notion health check below. Set this when your project
+  # doesn't integrate with Notion (e.g. Pair-PM uses TipTap, not Notion).
+  SKIP_NOTION_VAL="$(read_var "SKIP_NOTION_CHECK" || true)"
+  case "$SKIP_NOTION_VAL" in
+    1|true|TRUE|yes|YES) SKIP_NOTION=1 ;;
+  esac
+
+  if [[ $SKIP_NOTION -eq 1 ]]; then
+    echo "[check-env] Skipping Notion checks (SKIP_NOTION_CHECK=$SKIP_NOTION_VAL)"
+    VARS_TO_CHECK=(GEMINI_API_KEY)
+  else
+    VARS_TO_CHECK=(GEMINI_API_KEY NOTION_TOKEN NOTION_LEADS_DATABASE_ID)
+  fi
+
+  for VAR in "${VARS_TO_CHECK[@]}"; do
     val="$(read_var "$VAR" || true)"
     if is_stub "$val"; then
       case "$VAR" in
@@ -74,8 +91,8 @@ fi
 # ---------- 4. Notion reachable + database shared ---------------------------
 # Only run the live health check if the env vars passed (no point hitting the
 # network when we know auth will fail). The script prints OK: ... or FAIL: ...
-# with the share-gotcha fix on a 404.
-if [[ ${#PROBLEMS[@]} -eq 0 ]]; then
+# with the share-gotcha fix on a 404. Skipped when SKIP_NOTION_CHECK=1.
+if [[ ${#PROBLEMS[@]} -eq 0 && $SKIP_NOTION -eq 0 ]]; then
   HEALTH_OUT="$(cd "$REPO_ROOT/apps/agent" && uv run python -m src.notion_tools --check 2>&1 || true)"
   if ! grep -q "^OK: " <<<"$HEALTH_OUT"; then
     # Pass the FAIL output through verbatim — the --check flag already
