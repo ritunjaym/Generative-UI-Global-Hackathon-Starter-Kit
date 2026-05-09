@@ -17,7 +17,7 @@
 - **Backend:** LangGraph Deep Agents in `apps/agent/`, `AGENT_RUNTIME=gemini-flash-deep`, Gemini 3.1 Flash-Lite.
 - **Skipped:** MCP, Notion, A2UI for the diagram (we render with ReactFlow ourselves), LangSmith, Daytona.
 
-**Integration contract.** The `PairPMState` JSON shape (spec section 4). TypeScript type lives in `apps/frontend/src/types/pair-pm.ts`. Pydantic equivalent in `apps/agent/src/state.py`. **Field names match verbatim from the spec — no variations.**
+**Integration contract.** The `PairPMState` JSON shape (spec section 4). TypeScript types in [`apps/frontend/src/lib/pair-pm/types.ts`](../apps/frontend/src/lib/pair-pm/types.ts) (already scaffolded). Python TypedDict equivalent in [`apps/agent/src/pair_pm_state.py`](../apps/agent/src/pair_pm_state.py) (already scaffolded). **Field names match verbatim from the spec — no variations.** Both files import directly from each other's contracts.
 
 ---
 
@@ -26,9 +26,8 @@
 Before either of you starts solo work:
 
 1. Both: `npm install` then `npm run dev` — confirm it boots (Docker must be running)
-2. Both: paste the `PairPMState` TS type into `apps/frontend/src/types/pair-pm.ts` (verbatim from spec section 4)
-3. Both: write the matching Pydantic model in `apps/agent/src/state.py`
-4. Both: skim [`docs/demo-script.md`](demo-script.md) — these are the exact paragraphs we both test against
+2. Both: review the integration contract in [`apps/frontend/src/lib/pair-pm/types.ts`](../apps/frontend/src/lib/pair-pm/types.ts) and [`apps/agent/src/pair_pm_state.py`](../apps/agent/src/pair_pm_state.py) — these are already scaffolded; flag any field mismatches before either of you starts
+3. Both: skim [`docs/demo-script.md`](demo-script.md) — these are the exact paragraphs we both test against
 
 After this, you both work in parallel. No more cross-talk needed until 1:00.
 
@@ -137,10 +136,10 @@ After this, you both work in parallel. No more cross-talk needed until 1:00.
   - Empty doc → emit empty arrays, never placeholder content
   - **Stable IDs across emissions — never regenerate `n1`, `n2`, etc. for the same node**
 
-#### 2. PairPMState Pydantic models
-- **File:** `apps/agent/src/state.py`
-- Match `apps/frontend/src/types/pair-pm.ts` field names verbatim
-- Use as the agent's structured-output schema (LangChain structured output)
+#### 2. PairPMState TypedDict models
+- **File:** `apps/agent/src/pair_pm_state.py` *(scaffolded)*
+- Already mirrors `apps/frontend/src/lib/pair-pm/types.ts` field names
+- Wire as the agent's structured-output schema (LangChain structured output) — point the model at `PairPMState`
 
 #### 3. JSON-schema validator (retain previous state on parse failure)
 - **File:** `apps/agent/src/state_validator.py`
