@@ -1,5 +1,7 @@
 # Pair-PM
 
+Demo: [2 minute youtube video](https://youtu.be/qFuYxiFbB4k)
+
 > **A senior PM that lives inside your spec doc.**
 > Not a chatbot you ask. A reviewer who's already in the doc.
 
