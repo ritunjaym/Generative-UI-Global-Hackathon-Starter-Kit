@@ -1,6 +1,6 @@
 # Pair-PM
 
-Demo: [2 minute youtube video](https://youtu.be/qFuYxiFbB4k)
+Demo: [2 minute youtube video](https://youtu.be/SfJkGV3bUEM)
 
 > **A senior PM that lives inside your spec doc.**
 > Not a chatbot you ask. A reviewer who's already in the doc.
@@ -176,9 +176,9 @@ The kit's example product (Notion "Leads" canvas) has been **replaced** for Pair
 
 ## Team
 
-- **Aman** — PM. Owns the system prompt, demo content, and the lived experience the cold open is based on.
-- **Kaden** — Biomedical ML researcher building new model architectures from scratch. Owns the technical thesis and the Pair-PM agent persona.
-- **JS** — Engineer working on agentic workflow engines. Owns the runtime, middleware, and the receiving-end of the engineering handoff.
+- **Aman Goyal** — PM. Owns the system prompt, demo content, and the lived experience the cold open is based on.
+- **Caeden Kidd** — Biomedical ML researcher building new model architectures from scratch. Owns the technical thesis and the Pair-PM agent persona.
+- **Ritunjay Murali** — Engineer working on agentic workflow engines. Owns the runtime, middleware, and the receiving-end of the engineering handoff.
 
 ---
 
